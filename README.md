@@ -1,3 +1,134 @@
+
+To add an 'x' button for clearing text in an ag-Grid floating filter while preserving the existing style, you'll need to create a custom floating filter component. Here's how you can implement this:
+
+```typescript
+import { IFloatingFilter, IFloatingFilterParams } from 'ag-grid-community';
+import { Component } from '@angular/core';
+
+@Component({
+  selector: 'custom-text-filter',
+  template: `
+    <div class="ag-floating-filter-input" style="position: relative;">
+      <input 
+        #input
+        [value]="currentValue"
+        (input)="onInputChanged($event)"
+        class="ag-floating-filter-full-width" 
+        type="text"
+        placeholder="Filter..."
+      />
+      <button 
+        *ngIf="currentValue" 
+        class="clear-button" 
+        (click)="clearFilter()"
+        style="position: absolute; right: 5px; top: 50%; transform: translateY(-50%); 
+              background: none; border: none; cursor: pointer; padding: 0 5px;"
+      >
+        ✕
+      </button>
+    </div>
+  `,
+  styles: [`
+    .clear-button:hover {
+      color: #666;
+    }
+  `]
+})
+export class CustomTextFloatingFilterComponent implements IFloatingFilter {
+  params: any;
+  currentValue: string = '';
+
+  agInit(params: IFloatingFilterParams): void {
+    this.params = params;
+  }
+
+  onParentModelChanged(parentModel: any): void {
+    if (!parentModel) {
+      this.currentValue = '';
+    } else {
+      this.currentValue = parentModel.filter || '';
+    }
+  }
+
+  onInputChanged(event: any): void {
+    this.currentValue = event.target.value;
+    this.params.onFloatingFilterChanged({
+      type: 'contains',
+      filter: this.currentValue
+    });
+  }
+
+  clearFilter(): void {
+    this.currentValue = '';
+    this.params.onFloatingFilterChanged(null);
+  }
+}
+```
+
+Then register and use this component in your column definitions:
+
+```typescript
+import { GridOptions } from 'ag-grid-community';
+import { CustomTextFloatingFilterComponent } from './custom-text-floating-filter.component';
+
+@Component({
+  selector: 'app-grid',
+  template: '<ag-grid-angular [gridOptions]="gridOptions"></ag-grid-angular>'
+})
+export class GridComponent {
+  gridOptions: GridOptions = {
+    // Other grid options...
+    columnDefs: [
+      {
+        field: 'name',
+        filter: 'agTextColumnFilter',
+        floatingFilter: true,
+        floatingFilterComponent: CustomTextFloatingFilterComponent
+      },
+      // Other columns...
+    ]
+  };
+}
+```
+
+Make sure to register your custom component in your module:
+
+```typescript
+@NgModule({
+  declarations: [
+    AppComponent,
+    CustomTextFloatingFilterComponent
+  ],
+  imports: [
+    BrowserModule,
+    AgGridModule.withComponents([
+      CustomTextFloatingFilterComponent
+    ])
+  ],
+  // ...
+})
+export class AppModule { }
+```
+
+This implementation maintains the ag-Grid styling by using the existing ag-Grid classes and adding minimal custom styling for the clear button. The button only appears when there's text to clear, and it's positioned inside the input field.​​​​​​​​​​​​​​​​
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
