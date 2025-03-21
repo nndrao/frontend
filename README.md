@@ -1,4 +1,10 @@
-navigateToNextCell: function(params) {
+/***           **/
+
+
+const gridOptions = {
+  // Your other grid options
+  
+  navigateToNextCell: function(params) {
     const previousCell = params.previousCellPosition;
     const suggestedNextCell = params.nextCellPosition;
     
@@ -30,4 +36,22 @@ navigateToNextCell: function(params) {
     
     // For other keys, use default behavior
     return suggestedNextCell;
+  },
+  
+  // Add event listeners for column changes
+  onGridReady: function(params) {
+    params.api.addEventListener('columnResized', function() {
+      // Allow a small delay for the grid to stabilize after resize
+      setTimeout(function() {
+        params.api.refreshCells();
+      }, 50);
+    });
+    
+    // Optional: Also handle column visibility changes
+    params.api.addEventListener('columnVisible', function() {
+      setTimeout(function() {
+        params.api.refreshCells();
+      }, 50);
+    });
   }
+};
