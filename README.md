@@ -1,58 +1,43 @@
 
-I'll help you prevent caching of REST endpoint data in Angular. Here are several effective client-side approaches:
+Mid-Year Goal: Config Service Platform
+**Title:** Build a Hierarchical Configuration Service for Multi-Tenant Applications
+**Owner:** Anand Rao
+**Timeline:** H1 2025
+**Type:** Strategic / Technical Platform Initiative
+Goal Description
+Develop a scalable configuration service to support dynamic, hierarchical settings for internal applications. The service will support configuration keys and values across multiple levels such as Application, Region, City, Department, Desk, and User. REST APIs will be exposed for full CRUD functionality, and an admin UI will enable internal teams to manage settings in real time. The platform will enable configuration inheritance, overrides, and promote reusability across applications and teams.
+Success Criteria
+Metric	Target
+API Development	Expose secure REST endpoints for create, fetch, update, delete across all hierarchy levels
+Hierarchy Support	Support cascading config by Application > Region > City > Department > Desk > User
+Tech Stack	Implemented in either Java Spring Boot or Node.js (Express) with MongoDB
+UI Delivery	React or Angular-based admin panel for managing config keys, overrides, and scopes
+Reusability & Extensibility	Designed as a shared service to support at least 2 internal teams initially
+Documentation	Published API and UI usage guide, inheritance rules, and onboarding examples
+Notes for Manager
+This goal supports platform unification and self-service capabilities by centralizing configuration management. It reduces hardcoded settings and application-specific configuration files, leading to faster deployments, better change management, and configuration portability across environments.
+![image](https://github.com/user-attachments/assets/bc209d67-cf01-48bb-9ed8-aca97b6d33a9)
 
-1. Using HTTP interceptors:
-```typescript
-@Injectable()
-export class NoCacheInterceptor implements HttpInterceptor {
-  intercept(req: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
-    const modifiedReq = req.clone({
-      headers: req.headers
-        .set('Cache-Control', 'no-cache, no-store, must-revalidate')
-        .set('Pragma', 'no-cache')
-        .set('Expires', '0')
-    });
-    return next.handle(modifiedReq);
-  }
-}
 
-// In your app.module.ts
-providers: [
-  { provide: HTTP_INTERCEPTORS, useClass: NoCacheInterceptor, multi: true }
-]
-```
 
-2. For individual requests:
-```typescript
-this.http.get('https://api.example.com/data', {
-  headers: new HttpHeaders({
-    'Cache-Control': 'no-cache, no-store, must-revalidate',
-    'Pragma': 'no-cache',
-    'Expires': '0'
-  })
-})
-```
-
-3. Adding a timestamp parameter:
-```typescript
-this.http.get(`https://api.example.com/data?timestamp=${new Date().getTime()}`)
-```
-
-4. Disabling caching in Angular's HTTP client configuration:
-```typescript
-// In your app.module.ts
-imports: [
-  HttpClientModule,
-  // ...
-],
-providers: [
-  { provide: HTTP_INTERCEPTORS, useClass: NoCacheInterceptor, multi: true },
-  { provide: DEFAULT_OPTIONS, useValue: { headers: { 'Cache-Control': 'no-cache' } } }
-]
-```
-
-Would you like more details on any of these approaches for your Angular application?​​​​​​​​​​​​​​​​
-
+Mid-Year Goal: Grid Customization Tool
+**Title:** Develop a Customizable Enterprise-Grade Grid Platform for Trading & Data Operations
+**Owner:** Anand Rao
+**Timeline:** H1 2025
+**Type:** Strategic / Technical Execution
+Goal Description
+Design, build, and deliver a fully extensible and enterprise-ready ag-Grid customization tool that enables internal users to configure, preview, and persist complex grid behaviors across trading and risk management workflows. This tool will support real-time data interactions and fine-grained UI customization, and serve as the foundational layer for future blotter and dashboard components.
+Success Criteria
+Metric	Target
+Technical Delivery	MVP deployed and accessible via GitHub Pages or internal environment by mid-year
+Functionality Coverage	Supports at least 6 core customization domains (columns, formatting, rules, themes, components, persistence)
+User Enablement	Includes visual rule editor and template-based expression builder to support non-dev users
+Code Quality & Architecture	Modular React components with Tailwind, Zustand state management, and parameter-based theming
+Integration Potential	Tool proven viable for integration into 2 or more desk-specific platforms (e.g., Structured Products blotter, Credit Dashboard)
+Team Collaboration	Mentored at least 1 junior developer or shared knowledge via internal tech talk/code walkthrough
+Notes for Manager
+This tool is intended to reduce time-to-delivery for grid-based UIs by 50% and consolidate redundant implementations across teams. It also aligns with internal goals around standardizing UI/UX, improving data entitlement visibility, and enhancing desk autonomy
+![image](https://github.com/user-attachments/assets/ef93f1aa-8f63-40cc-9279-5da84ace5201)
 
 
 
