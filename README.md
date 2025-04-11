@@ -1,22 +1,62 @@
- navigateToNextCell: function(params) {
-    const previousCell = params.previousCellPosition;
-    const suggestedNextCell = params.nextCellPosition;
-    
-    // Example condition: Clear focus when navigating beyond the last column
-    if (suggestedNextCell && 
-        previousCell.column.getColId() === 'lastColumnId' && 
-        params.key === 'ArrowRight') {
-      // Return null to clear focus
-      return null;
-    }
-    
-    // Example condition: Clear focus when navigating down from the last row
-    if (previousCell.rowIndex === (gridOptions.rowData.length - 1) && 
-        params.key === 'ArrowDown') {
-      return null;
-    }
-    
-    // Otherwise proceed with default navigation
-    return suggestedNextCell;
+ // throttledNavigation.js
+
+export function createThrottledNavigation({ arrowDelay = 20, tabDelay = 100 } = {}) {
+  function suppressKeyboardEvent(params) {
+    const key = params.event.key;
+    return ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab'].includes(key);
   }
+
+  function navigateToNextCell(params) {
+    const suggestedNextCell = params.nextCellPosition;
+
+    setTimeout(() => {
+      if (suggestedNextCell) {
+        params.api.ensureColumnVisible(suggestedNextCell.column);
+        params.api.ensureIndexVisible(suggestedNextCell.rowIndex);
+        params.api.setFocusedCell(suggestedNextCell.rowIndex, suggestedNextCell.column);
+      }
+    }, arrowDelay);
+
+    return null;
+  }
+
+  function tabToNextCell(params) {
+    const suggestedNextCell = params.nextCellPosition;
+
+    setTimeout(() => {
+      if (suggestedNextCell) {
+        params.api.ensureColumnVisible(suggestedNextCell.column);
+        params.api.ensureIndexVisible(suggestedNextCell.rowIndex);
+        params.api.setFocusedCell(suggestedNextCell.rowIndex, suggestedNextCell.column);
+      }
+    }, tabDelay);
+
+    return true;
+  }
+
+  return {
+    suppressKeyboardEvent,
+    navigateToNextCell,
+    tabToNextCell
+  };
+}
+
+
+
+import { createThrottledNavigation } from './throttledNavigation';
+
+const throttledNav = createThrottledNavigation({
+  arrowDelay: 30,
+  tabDelay: 100
+});
+
+const gridOptions = {
+  columnDefs: [...],
+  defaultColDef: {
+    suppressKeyboardEvent: throttledNav.suppressKeyboardEvent
+  },
+  navigateToNextCell: throttledNav.navigateToNextCell,
+  tabToNextCell: throttledNav.tabToNextCell,
 };
+
+
