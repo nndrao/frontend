@@ -1,37 +1,64 @@
- // throttledNavigation.js
+///////////////////////
+//////////////////////////////////
 
-export function createThrottledNavigation({ arrowDelay = 20, tabDelay = 100 } = {}) {
+
+
+
+
+
+
+export function createThrottledNavigation({ arrowDelay = 30, tabDelay = 100 } = {}) {
   function suppressKeyboardEvent(params) {
     const key = params.event.key;
     return ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab'].includes(key);
   }
 
   function navigateToNextCell(params) {
-    const suggestedNextCell = params.nextCellPosition;
+    const gridApi = params.api;
+    const currentFocused = gridApi.getFocusedCell();
+    const next = params.nextCellPosition;
 
+    // Remove current cell focus immediately
+    if (currentFocused) {
+      const dom = document.querySelector(
+        `.ag-cell[row-index="${currentFocused.rowIndex}"][col-id="${currentFocused.column.getColId()}"]`
+      );
+      dom?.blur(); // force blur to prevent dual focus
+    }
+
+    // Set focus to next cell with delay
     setTimeout(() => {
-      if (suggestedNextCell) {
-        params.api.ensureColumnVisible(suggestedNextCell.column);
-        params.api.ensureIndexVisible(suggestedNextCell.rowIndex);
-        params.api.setFocusedCell(suggestedNextCell.rowIndex, suggestedNextCell.column);
+      if (next) {
+        gridApi.ensureColumnVisible(next.column);
+        gridApi.ensureIndexVisible(next.rowIndex);
+        gridApi.setFocusedCell(next.rowIndex, next.column);
       }
     }, arrowDelay);
 
-    return null;
+    return null; // suppress default behavior
   }
 
   function tabToNextCell(params) {
-    const suggestedNextCell = params.nextCellPosition;
+    const gridApi = params.api;
+    const currentFocused = gridApi.getFocusedCell();
+    const next = params.nextCellPosition;
+
+    if (currentFocused) {
+      const dom = document.querySelector(
+        `.ag-cell[row-index="${currentFocused.rowIndex}"][col-id="${currentFocused.column.getColId()}"]`
+      );
+      dom?.blur();
+    }
 
     setTimeout(() => {
-      if (suggestedNextCell) {
-        params.api.ensureColumnVisible(suggestedNextCell.column);
-        params.api.ensureIndexVisible(suggestedNextCell.rowIndex);
-        params.api.setFocusedCell(suggestedNextCell.rowIndex, suggestedNextCell.column);
+      if (next) {
+        gridApi.ensureColumnVisible(next.column);
+        gridApi.ensureIndexVisible(next.rowIndex);
+        gridApi.setFocusedCell(next.rowIndex, next.column);
       }
     }, tabDelay);
 
-    return true;
+    return true; // prevent default tabbing
   }
 
   return {
@@ -40,23 +67,3 @@ export function createThrottledNavigation({ arrowDelay = 20, tabDelay = 100 } = 
     tabToNextCell
   };
 }
-
-
-
-import { createThrottledNavigation } from './throttledNavigation';
-
-const throttledNav = createThrottledNavigation({
-  arrowDelay: 30,
-  tabDelay: 100
-});
-
-const gridOptions = {
-  columnDefs: [...],
-  defaultColDef: {
-    suppressKeyboardEvent: throttledNav.suppressKeyboardEvent
-  },
-  navigateToNextCell: throttledNav.navigateToNextCell,
-  tabToNextCell: throttledNav.tabToNextCell,
-};
-
-
