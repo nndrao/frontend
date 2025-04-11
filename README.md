@@ -7,63 +7,30 @@
 
 
 
-export function createThrottledNavigation({ arrowDelay = 30, tabDelay = 100 } = {}) {
-  function suppressKeyboardEvent(params) {
-    const key = params.event.key;
-    return ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab'].includes(key);
-  }
+const gridOptions = {
+  columnDefs: [...],
+  defaultColDef: {
+    suppressKeyboardEvent: (() => {
+      const lastKeydown = {};
+      const throttleInterval = 100; // in milliseconds
 
-  function navigateToNextCell(params) {
-    const gridApi = params.api;
-    const currentFocused = gridApi.getFocusedCell();
-    const next = params.nextCellPosition;
+      return function (params) {
+        const key = params.event.key;
+        const allowedKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'];
 
-    // Remove current cell focus immediately
-    if (currentFocused) {
-      const dom = document.querySelector(
-        `.ag-cell[row-index="${currentFocused.rowIndex}"][col-id="${currentFocused.column.getColId()}"]`
-      );
-      dom?.blur(); // force blur to prevent dual focus
-    }
+        if (!allowedKeys.includes(key)) return false;
 
-    // Set focus to next cell with delay
-    setTimeout(() => {
-      if (next) {
-        gridApi.ensureColumnVisible(next.column);
-        gridApi.ensureIndexVisible(next.rowIndex);
-        gridApi.setFocusedCell(next.rowIndex, next.column);
-      }
-    }, arrowDelay);
+        const now = Date.now();
+        const last = lastKeydown[key] || 0;
+        const timeSinceLast = now - last;
 
-    return null; // suppress default behavior
-  }
+        if (timeSinceLast < throttleInterval) {
+          return true; // suppress the event
+        }
 
-  function tabToNextCell(params) {
-    const gridApi = params.api;
-    const currentFocused = gridApi.getFocusedCell();
-    const next = params.nextCellPosition;
-
-    if (currentFocused) {
-      const dom = document.querySelector(
-        `.ag-cell[row-index="${currentFocused.rowIndex}"][col-id="${currentFocused.column.getColId()}"]`
-      );
-      dom?.blur();
-    }
-
-    setTimeout(() => {
-      if (next) {
-        gridApi.ensureColumnVisible(next.column);
-        gridApi.ensureIndexVisible(next.rowIndex);
-        gridApi.setFocusedCell(next.rowIndex, next.column);
-      }
-    }, tabDelay);
-
-    return true; // prevent default tabbing
-  }
-
-  return {
-    suppressKeyboardEvent,
-    navigateToNextCell,
-    tabToNextCell
-  };
-}
+        lastKeydown[key] = now;
+        return false; // allow the event
+      };
+    })(),
+  },
+};
