@@ -6,13 +6,15 @@
 
 
 
-const lastKeydown = {};
-const throttleInterval = 100; // in milliseconds
+import { GridOptions, SuppressKeyboardEventParams } from 'ag-grid-community';
 
-const gridOptions = {
+const lastKeydown: Record<string, number> = {};
+const throttleInterval = 100; // ms
+
+const gridOptions: GridOptions = {
   columnDefs: [...],
   defaultColDef: {
-    suppressKeyboardEvent: (params) => {
+    suppressKeyboardEvent: (params: SuppressKeyboardEventParams): boolean => {
       const key = params.event.key;
       const allowedKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'];
 
