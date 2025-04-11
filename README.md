@@ -6,11 +6,7 @@
 
 
 
-
-const gridOptions = {
-  columnDefs: [...],
-  defaultColDef: {
-    suppressKeyboardEvent: (() => {
+suppressKeyboardEvent: (() => {
       const lastKeydown = {};
       const throttleInterval = 100; // in milliseconds
 
@@ -33,4 +29,3 @@ const gridOptions = {
       };
     })(),
   },
-};
