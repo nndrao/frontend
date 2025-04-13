@@ -30,104 +30,100 @@ export function setupHighPerformanceNavThrottle(api: GridApi): void {
   });
 }
 
- navigateToNextCell: (function () {
+
+
+
+navigateToNextCell: (function () {
       let lastExecutionTime = 0; // Tracks the last execution time
       const throttleInterval = 50; // Minimum time (in ms) between executions
+      let isRangeSelectionActive = false; // Track if range selection is in progress
 
       return function (params) {
         const now = Date.now();
+        
+        // Check if this is a Shift key operation (range selection)
+        // Properly cast the event and check shiftKey with type safety
+        if (params.event) {
+          isRangeSelectionActive = (params.event as KeyboardEvent).shiftKey === true;
+        } else {
+          isRangeSelectionActive = false;
+        }
 
-        // Throttle logic: Ignore calls that occur too soon after the last execution
+        // If this is range selection, don't interfere with AG Grid's native behavior
+        if (isRangeSelectionActive) {
+          // Just throttle but don't interfere with selection behavior
+          if (now - lastExecutionTime < throttleInterval) {
+            return null; // Still throttle rapid keypresses
+          }
+          lastExecutionTime = now;
+          return params.nextCellPosition; // Allow normal range selection
+        }
+        
+        // For normal navigation (not range selection)
         if (now - lastExecutionTime < throttleInterval) {
-          return null; // Prevent navigation
+          return null; // Prevent navigation when throttling
         }
 
         lastExecutionTime = now; // Update the last execution time
 
-        // Get the next cell position
+        // For regular navigation, we'll handle it ourselves for better control
         const suggestedNextCell = params.nextCellPosition;
         if (suggestedNextCell) {
-          // Use the AG Grid API to remove current range selections
-          params.api.clearRangeSelection();
-          
-          // Force a refresh of the current cell to clear its focus state
-          if (params.previousCellPosition) {
-            const rowNode = params.api.getDisplayedRowAtIndex(params.previousCellPosition.rowIndex);
-            if (rowNode) {
-              params.api.refreshCells({
-                rowNodes: [rowNode],
-                columns: [params.previousCellPosition.column.getColId()],
-                force: true
-              });
-            }
-          }
-          
-          // Navigate to the next cell
+          // Use setTimeout to prevent UI freezing with large datasets
           setTimeout(() => {
+            params.api.setFocusedCell(suggestedNextCell.rowIndex, suggestedNextCell.column);
             params.api.ensureColumnVisible(suggestedNextCell.column);
             params.api.ensureIndexVisible(suggestedNextCell.rowIndex);
-            params.api.setFocusedCell(suggestedNextCell.rowIndex, suggestedNextCell.column);
-            
-            // Force cell into view with scrolling if needed
-            const eGridDiv = document.querySelector('.ag-center-cols-container');
-            if (eGridDiv) {
-              const cell = eGridDiv.querySelector(`.ag-cell[row-index="${suggestedNextCell.rowIndex}"][col-id="${suggestedNextCell.column.getColId()}"]`);
-              if (cell) {
-                cell.scrollIntoView({ block: 'nearest' });
-              }
-            }
-          }, 5);
+          }, 0);
+          
+          return suggestedNextCell; // Allow navigation to proceed
         }
-
-        // Return null to take control of navigation ourselves
+        
         return null;
       };
-    })()
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  ,
+    })(),
     tabToNextCell: (function () {
       let lastExecutionTime = 0; // Tracks the last execution time
       const throttleInterval = 50; // Minimum time (in ms) between executions
+      let isRangeSelectionActive = false; // Track if range selection is in progress
 
       return function (params) {
         const now = Date.now();
+        
+        // TabToNextCellParams doesn't have an event property, so we need to handle differently
+        // We can detect if this is a backward navigation (shift+tab) by checking the direction
+        isRangeSelectionActive = params.backwards === true;
 
-        // Throttle logic: Ignore calls that occur too soon after the last execution
+        // If this is backward navigation, don't interfere with AG Grid's native behavior
+        if (isRangeSelectionActive) {
+          // Just throttle but don't interfere with selection behavior
+          if (now - lastExecutionTime < throttleInterval) {
+            return false; // Still throttle rapid keypresses
+          }
+          lastExecutionTime = now;
+          return params.nextCellPosition; // Allow normal navigation
+        }
+        
+        // For normal navigation (not range selection)
         if (now - lastExecutionTime < throttleInterval) {
-          return params.nextCellPosition; // Return the intended next cell to continue navigation
+          return false; // Prevent navigation when throttling
         }
 
         lastExecutionTime = now; // Update the last execution time
 
-        // Custom navigation logic
+        // For regular navigation, we'll handle it ourselves for better control
         const suggestedNextCell = params.nextCellPosition;
         if (suggestedNextCell) {
-          // Clear focus from any cells with ag-cell-focus class
-          const focusedCells = document.querySelectorAll('.ag-cell-focus');
-          focusedCells.forEach(cell => {
-            cell.classList.remove('ag-cell-focus');
-          });
-
-          // Ensure new cell is visible and set focus to it
-          params.api.ensureColumnVisible(suggestedNextCell.column);
-          params.api.ensureIndexVisible(suggestedNextCell.rowIndex);
-          params.api.setFocusedCell(suggestedNextCell.rowIndex, suggestedNextCell.column);
+          // Use setTimeout to prevent UI freezing with large datasets
+          setTimeout(() => {
+            params.api.setFocusedCell(suggestedNextCell.rowIndex, suggestedNextCell.column);
+            params.api.ensureColumnVisible(suggestedNextCell.column);
+            params.api.ensureIndexVisible(suggestedNextCell.rowIndex);
+          }, 0);
+          
+          return suggestedNextCell; // Allow navigation to proceed
         }
-
-        // Return the next position to allow the navigation to occur
-        return suggestedNextCell;
+        
+        return false;
       };
-    })()
-
-
-
-
+    })(),
