@@ -32,98 +32,108 @@ export function setupHighPerformanceNavThrottle(api: GridApi): void {
 
 
 
-
 navigateToNextCell: (function () {
       let lastExecutionTime = 0; // Tracks the last execution time
-      const throttleInterval = 50; // Minimum time (in ms) between executions
-      let isRangeSelectionActive = false; // Track if range selection is in progress
+      const throttleInterval = 70; // Increased throttle interval for expanded groups
+      let lastDirection: string | null = null; // Track the direction of navigation
+      let consecutiveCallsInSameDirection = 0;
+      const MAX_CONSECUTIVE_CALLS = 3; // Limit how many consecutive calls in the same direction before enforcing a delay
 
       return function (params) {
         const now = Date.now();
         
-        // Check if this is a Shift key operation (range selection)
-        // Properly cast the event and check shiftKey with type safety
-        if (params.event) {
-          isRangeSelectionActive = (params.event as KeyboardEvent).shiftKey === true;
+        // Get the current direction (keyboard key)
+        const currentDirection = params.key;
+        
+        // Check if we're still navigating in the same direction
+        if (currentDirection === lastDirection) {
+          consecutiveCallsInSameDirection++;
         } else {
-          isRangeSelectionActive = false;
-        }
-
-        // If this is range selection, don't interfere with AG Grid's native behavior
-        if (isRangeSelectionActive) {
-          // Just throttle but don't interfere with selection behavior
-          if (now - lastExecutionTime < throttleInterval) {
-            return null; // Still throttle rapid keypresses
-          }
-          lastExecutionTime = now;
-          return params.nextCellPosition; // Allow normal range selection
+          consecutiveCallsInSameDirection = 0;
+          lastDirection = currentDirection;
         }
         
-        // For normal navigation (not range selection)
-        if (now - lastExecutionTime < throttleInterval) {
-          return null; // Prevent navigation when throttling
-        }
-
-        lastExecutionTime = now; // Update the last execution time
-
-        // For regular navigation, we'll handle it ourselves for better control
-        const suggestedNextCell = params.nextCellPosition;
-        if (suggestedNextCell) {
-          // Use setTimeout to prevent UI freezing with large datasets
-          setTimeout(() => {
-            params.api.setFocusedCell(suggestedNextCell.rowIndex, suggestedNextCell.column);
-            params.api.ensureColumnVisible(suggestedNextCell.column);
-            params.api.ensureIndexVisible(suggestedNextCell.rowIndex);
-          }, 0);
+        // Special handling for grouped and expanded data
+        if (params.api.getDisplayedRowCount() > 1000) {
+          // For large datasets with multiple groups expanded
           
-          return suggestedNextCell; // Allow navigation to proceed
+          // When continuously navigating in same direction
+          if (consecutiveCallsInSameDirection > MAX_CONSECUTIVE_CALLS) {
+            // Apply a more aggressive throttle to avoid freezing
+            if (now - lastExecutionTime < throttleInterval * 2) {
+              return null; // Skip this navigation step
+            }
+          } else {
+            // Standard throttling for first few keypresses
+            if (now - lastExecutionTime < throttleInterval) {
+              return null;
+            }
+          }
+        } else {
+          // Standard throttling for smaller datasets or collapsed groups
+          if (now - lastExecutionTime < throttleInterval) {
+            return null; 
+          }
         }
         
-        return null;
+        lastExecutionTime = now;
+        
+        // For shift-key range selection, just return the next position
+        if (params.event && (params.event as KeyboardEvent).shiftKey) {
+          return params.nextCellPosition;
+        }
+        
+        // Standard navigation - let AG Grid handle it naturally
+        // This is a key improvement - avoiding unnecessary DOM operations
+        return params.nextCellPosition;
       };
     })(),
+
+
+
+
+  
     tabToNextCell: (function () {
       let lastExecutionTime = 0; // Tracks the last execution time
-      const throttleInterval = 50; // Minimum time (in ms) between executions
-      let isRangeSelectionActive = false; // Track if range selection is in progress
+      const throttleInterval = 70; // Increased for better performance
+      let consecutiveTabCalls = 0;
+      const MAX_CONSECUTIVE_TABS = 3;
 
       return function (params) {
         const now = Date.now();
         
-        // TabToNextCellParams doesn't have an event property, so we need to handle differently
-        // We can detect if this is a backward navigation (shift+tab) by checking the direction
-        isRangeSelectionActive = params.backwards === true;
-
-        // If this is backward navigation, don't interfere with AG Grid's native behavior
-        if (isRangeSelectionActive) {
-          // Just throttle but don't interfere with selection behavior
-          if (now - lastExecutionTime < throttleInterval) {
-            return false; // Still throttle rapid keypresses
+        // Track consecutive tab key presses
+        consecutiveTabCalls++;
+        
+        // Special handling for grouped and expanded data
+        if (params.api.getDisplayedRowCount() > 1000) {
+          // For large datasets with multiple groups expanded
+          if (consecutiveTabCalls > MAX_CONSECUTIVE_TABS) {
+            // Apply a more aggressive throttle to avoid freezing
+            if (now - lastExecutionTime < throttleInterval * 2) {
+              return false; // Skip this navigation
+            }
+          } else {
+            // Standard throttling for first few keypresses
+            if (now - lastExecutionTime < throttleInterval) {
+              return false;
+            }
           }
-          lastExecutionTime = now;
-          return params.nextCellPosition; // Allow normal navigation
+        } else {
+          // Standard throttling for smaller datasets
+          if (now - lastExecutionTime < throttleInterval) {
+            return false;
+          }
         }
         
-        // For normal navigation (not range selection)
-        if (now - lastExecutionTime < throttleInterval) {
-          return false; // Prevent navigation when throttling
-        }
-
-        lastExecutionTime = now; // Update the last execution time
-
-        // For regular navigation, we'll handle it ourselves for better control
-        const suggestedNextCell = params.nextCellPosition;
-        if (suggestedNextCell) {
-          // Use setTimeout to prevent UI freezing with large datasets
-          setTimeout(() => {
-            params.api.setFocusedCell(suggestedNextCell.rowIndex, suggestedNextCell.column);
-            params.api.ensureColumnVisible(suggestedNextCell.column);
-            params.api.ensureIndexVisible(suggestedNextCell.rowIndex);
-          }, 0);
-          
-          return suggestedNextCell; // Allow navigation to proceed
+        lastExecutionTime = now;
+        
+        // For shift+tab backward navigation
+        if (params.backwards) {
+          return params.nextCellPosition;
         }
         
-        return false;
+        // Standard navigation - let AG Grid handle it naturally
+        return params.nextCellPosition;
       };
-    })(),
+    })()
