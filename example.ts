@@ -32,91 +32,96 @@ export function setupHighPerformanceNavThrottle(api: GridApi): void {
 
 
 
-navigateToNextCell: (function () {
-  let lastExecutionTime = 0;
-  const throttleInterval = 50;
-  
-  return function (params) {
-    const now = Date.now();
-    
-    if (now - lastExecutionTime < throttleInterval) {
-      return null;
+/////////////////
+
+
+private setupKeyboardHandling(): void {
+  let arrowKeyHeld = false;
+  let keyHoldTimer: any = null;
+  let lastArrowKey: string | null = null;
+  let keyRepeatCount = 0;
+  const MAX_ARROW_REPEAT = 10;
+
+  // 👇 Track Shift key state globally
+  let isShiftPressed = false;
+
+  document.addEventListener('keydown', (event: KeyboardEvent) => {
+    const key = event.key;
+
+    if (key === 'Shift') {
+      isShiftPressed = true;
+      return;
     }
-    
-    lastExecutionTime = now;
-    
-    // Custom class for styling controlled cells
-    const focusClass = 'custom-focused-cell';
-    
-    // Remove class from all cells first
-    document.querySelectorAll('.' + focusClass).forEach(cell => {
-      cell.classList.remove(focusClass);
-    });
-    
-    const suggestedNextCell = params.nextCellPosition;
-    
-    if (suggestedNextCell) {
-      params.api.ensureColumnVisible(suggestedNextCell.column);
-      params.api.ensureIndexVisible(suggestedNextCell.rowIndex);
-      params.api.setFocusedCell(suggestedNextCell.rowIndex, suggestedNextCell.column);
-      
-      // Add custom class to the newly focused cell
-      setTimeout(() => {
-        const focusedCell = document.querySelector('.ag-cell-focus');
-        if (focusedCell) {
-          focusedCell.classList.add(focusClass);
-        }
-      }, 0);
+
+    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
+      return;
     }
-    
-    return null;
-  };
-})(),
 
+    if (isShiftPressed) return; // Let AG Grid handle Shift+Arrow range selection
 
+    if (key === lastArrowKey) {
+      keyRepeatCount++;
 
-  
-    tabToNextCell: (function () {
-      let lastExecutionTime = 0; // Tracks the last execution time
-      const throttleInterval = 70; // Increased for better performance
-      let consecutiveTabCalls = 0;
-      const MAX_CONSECUTIVE_TABS = 3;
+      if (keyRepeatCount > MAX_ARROW_REPEAT &&
+          this.gridApi.getDisplayedRowCount() > 1000) {
 
-      return function (params) {
-        const now = Date.now();
-        
-        // Track consecutive tab key presses
-        consecutiveTabCalls++;
-        
-        // Special handling for grouped and expanded data
-        if (params.api.getDisplayedRowCount() > 1000) {
-          // For large datasets with multiple groups expanded
-          if (consecutiveTabCalls > MAX_CONSECUTIVE_TABS) {
-            // Apply a more aggressive throttle to avoid freezing
-            if (now - lastExecutionTime < throttleInterval * 2) {
-              return false; // Skip this navigation
+        event.preventDefault();
+
+        if (!arrowKeyHeld) {
+          arrowKeyHeld = true;
+
+          keyHoldTimer = setInterval(() => {
+            const focusedCell = this.gridApi.getFocusedCell();
+            if (!focusedCell) return;
+
+            let nextRow = focusedCell.rowIndex;
+            let nextCol = focusedCell.column;
+
+            const allCols = this.gridApi.getAllDisplayedColumns();
+            const currentIdx = allCols.indexOf(nextCol);
+
+            if (key === 'ArrowDown') nextRow++;
+            else if (key === 'ArrowUp') nextRow--;
+            else if (key === 'ArrowRight') nextCol = allCols[currentIdx + 1] || nextCol;
+            else if (key === 'ArrowLeft') nextCol = allCols[currentIdx - 1] || nextCol;
+
+            if (nextRow >= 0 && nextRow < this.gridApi.getDisplayedRowCount()) {
+              this.gridApi.ensureIndexVisible(nextRow);
+              this.gridApi.ensureColumnVisible(nextCol);
+              this.gridApi.setFocusedCell(nextRow, nextCol);
             }
-          } else {
-            // Standard throttling for first few keypresses
-            if (now - lastExecutionTime < throttleInterval) {
-              return false;
-            }
-          }
-        } else {
-          // Standard throttling for smaller datasets
-          if (now - lastExecutionTime < throttleInterval) {
-            return false;
-          }
+          }, 150);
         }
-        
-        lastExecutionTime = now;
-        
-        // For shift+tab backward navigation
-        if (params.backwards) {
-          return params.nextCellPosition;
-        }
-        
-        // Standard navigation - let AG Grid handle it naturally
-        return params.nextCellPosition;
-      };
-    })()
+      }
+    } else {
+      lastArrowKey = key;
+      keyRepeatCount = 0;
+    }
+  });
+
+  document.addEventListener('keyup', (event: KeyboardEvent) => {
+    const key = event.key;
+
+    if (key === 'Shift') {
+      isShiftPressed = false;
+      return;
+    }
+
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
+      arrowKeyHeld = false;
+      lastArrowKey = null;
+      keyRepeatCount = 0;
+
+      if (keyHoldTimer) {
+        clearInterval(keyHoldTimer);
+        keyHoldTimer = null;
+      }
+    }
+  });
+}
+
+
+
+
+
+this.setupKeyboardHandling();
