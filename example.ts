@@ -240,6 +240,120 @@ private setupKeyboardHandling(): void {
 
 
 
+//////////version 2
+
+private setupKeyboardHandling(): void {
+  let lastKey: string | null = null;
+  let keyRepeatCount = 0;
+  const MAX_REPEAT = 10;
+
+  let isShiftPressed = false;
+  let isArrowHeld = false;
+  let isTabHeld = false;
+  let rafId: number | null = null;
+
+  const step = (key: string) => {
+    const focusedCell = this.gridApi.getFocusedCell();
+    if (!focusedCell) return;
+
+    let nextRow = focusedCell.rowIndex;
+    let nextCol = focusedCell.column;
+    const allCols = this.gridApi.getAllDisplayedColumns();
+    const currentIdx = allCols.indexOf(nextCol);
+
+    if (['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight'].includes(key)) {
+      if (key === 'ArrowDown') nextRow++;
+      else if (key === 'ArrowUp') nextRow--;
+      else if (key === 'ArrowRight') nextCol = allCols[currentIdx + 1] || nextCol;
+      else if (key === 'ArrowLeft') nextCol = allCols[currentIdx - 1] || nextCol;
+    }
+
+    if (key === 'Tab') {
+      nextCol = isShiftPressed
+        ? allCols[currentIdx - 1] || nextCol
+        : allCols[currentIdx + 1] || nextCol;
+
+      // Optional row switch at edge
+      if (!nextCol) {
+        nextRow = isShiftPressed ? nextRow - 1 : nextRow + 1;
+        nextCol = isShiftPressed
+          ? allCols[allCols.length - 1]
+          : allCols[0];
+      }
+    }
+
+    if (
+      nextRow >= 0 &&
+      nextRow < this.gridApi.getDisplayedRowCount() &&
+      nextCol
+    ) {
+      this.gridApi.ensureIndexVisible(nextRow);
+      this.gridApi.ensureColumnVisible(nextCol);
+      this.gridApi.setFocusedCell(nextRow, nextCol);
+    }
+  };
+
+  const loop = () => {
+    if (lastKey) step(lastKey);
+    rafId = requestAnimationFrame(loop);
+  };
+
+  document.addEventListener('keydown', (event: KeyboardEvent) => {
+    const key = event.key;
+
+    if (key === 'Shift') {
+      isShiftPressed = true;
+      return;
+    }
+
+    const isArrow = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key);
+    const isTab = key === 'Tab';
+    if (!isArrow && !isTab) return;
+
+    // Don't interfere with editing or range selection
+    if (this.gridApi.getEditingCells().length > 0) return;
+    if (isArrow && isShiftPressed) return;
+
+    if (key === lastKey) {
+      keyRepeatCount++;
+      if (keyRepeatCount > MAX_REPEAT && this.gridApi.getDisplayedRowCount() > 1000) {
+        event.preventDefault();
+
+        if (!rafId) {
+          if (isArrow) isArrowHeld = true;
+          if (isTab) isTabHeld = true;
+          rafId = requestAnimationFrame(loop);
+        }
+      }
+    } else {
+      lastKey = key;
+      keyRepeatCount = 0;
+    }
+  });
+
+  document.addEventListener('keyup', (event: KeyboardEvent) => {
+    const key = event.key;
+
+    if (key === 'Shift') {
+      isShiftPressed = false;
+      return;
+    }
+
+    if (
+      ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(key)
+    ) {
+      isArrowHeld = false;
+      isTabHeld = false;
+      lastKey = null;
+      keyRepeatCount = 0;
+
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    }
+  });
+}
 
 
 
