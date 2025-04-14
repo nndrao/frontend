@@ -33,62 +33,45 @@ export function setupHighPerformanceNavThrottle(api: GridApi): void {
 
 
 navigateToNextCell: (function () {
-      let lastExecutionTime = 0; // Tracks the last execution time
-      const throttleInterval = 70; // Increased throttle interval for expanded groups
-      let lastDirection: string | null = null; // Track the direction of navigation
-      let consecutiveCallsInSameDirection = 0;
-      const MAX_CONSECUTIVE_CALLS = 3; // Limit how many consecutive calls in the same direction before enforcing a delay
-
-      return function (params) {
-        const now = Date.now();
-        
-        // Get the current direction (keyboard key)
-        const currentDirection = params.key;
-        
-        // Check if we're still navigating in the same direction
-        if (currentDirection === lastDirection) {
-          consecutiveCallsInSameDirection++;
-        } else {
-          consecutiveCallsInSameDirection = 0;
-          lastDirection = currentDirection;
+  let lastExecutionTime = 0;
+  const throttleInterval = 50;
+  
+  return function (params) {
+    const now = Date.now();
+    
+    if (now - lastExecutionTime < throttleInterval) {
+      return null;
+    }
+    
+    lastExecutionTime = now;
+    
+    // Custom class for styling controlled cells
+    const focusClass = 'custom-focused-cell';
+    
+    // Remove class from all cells first
+    document.querySelectorAll('.' + focusClass).forEach(cell => {
+      cell.classList.remove(focusClass);
+    });
+    
+    const suggestedNextCell = params.nextCellPosition;
+    
+    if (suggestedNextCell) {
+      params.api.ensureColumnVisible(suggestedNextCell.column);
+      params.api.ensureIndexVisible(suggestedNextCell.rowIndex);
+      params.api.setFocusedCell(suggestedNextCell.rowIndex, suggestedNextCell.column);
+      
+      // Add custom class to the newly focused cell
+      setTimeout(() => {
+        const focusedCell = document.querySelector('.ag-cell-focus');
+        if (focusedCell) {
+          focusedCell.classList.add(focusClass);
         }
-        
-        // Special handling for grouped and expanded data
-        if (params.api.getDisplayedRowCount() > 1000) {
-          // For large datasets with multiple groups expanded
-          
-          // When continuously navigating in same direction
-          if (consecutiveCallsInSameDirection > MAX_CONSECUTIVE_CALLS) {
-            // Apply a more aggressive throttle to avoid freezing
-            if (now - lastExecutionTime < throttleInterval * 2) {
-              return null; // Skip this navigation step
-            }
-          } else {
-            // Standard throttling for first few keypresses
-            if (now - lastExecutionTime < throttleInterval) {
-              return null;
-            }
-          }
-        } else {
-          // Standard throttling for smaller datasets or collapsed groups
-          if (now - lastExecutionTime < throttleInterval) {
-            return null; 
-          }
-        }
-        
-        lastExecutionTime = now;
-        
-        // For shift-key range selection, just return the next position
-        if (params.event && (params.event as KeyboardEvent).shiftKey) {
-          return params.nextCellPosition;
-        }
-        
-        // Standard navigation - let AG Grid handle it naturally
-        // This is a key improvement - avoiding unnecessary DOM operations
-        return params.nextCellPosition;
-      };
-    })(),
-
+      }, 0);
+    }
+    
+    return null;
+  };
+})(),
 
 
 
