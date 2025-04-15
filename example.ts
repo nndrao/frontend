@@ -29,9 +29,75 @@ export function setupHighPerformanceNavThrottle(api: GridApi): void {
     gridRoot.removeEventListener('keydown', frameThrottler, true);
   });
 }
+//////////////////another version of of the above function
 
-
-
+/**
+ * Sets up optimized navigation throttling for AG Grid.
+ * Combines time-based throttling (100ms) with requestAnimationFrame
+ * for smoother performance and reduced CPU usage.
+ * 
+ * @param api - The AG Grid API instance
+ * @returns A cleanup function to remove the event listener
+ */
+export function setupHighPerformanceNavThrottle(api: GridApi): () => void {
+  // Define navigation keys as a Set for O(1) lookup performance
+  const navKeys = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab']);
+  
+  // Find the grid root element
+  const gridRoot = document.querySelector<HTMLElement>('.ag-root');
+  if (!gridRoot) {
+    console.warn('AG Grid root element not found');
+    return () => {}; // Return no-op cleanup function
+  }
+  
+  // Throttle interval in milliseconds
+  const THROTTLE_INTERVAL = 100;
+  
+  // Timestamp of last processed navigation event
+  let lastEventTime = 0;
+  
+  // Track if we're waiting for the next animation frame
+  let isWaitingForFrame = false;
+  
+  // Event handler with combined throttling strategies
+  const handleKeyNavigation = (e: KeyboardEvent): void => {
+    // Early return if not a navigation key
+    if (!navKeys.has(e.key)) return;
+    
+    const currentTime = Date.now();
+    const timeSinceLastEvent = currentTime - lastEventTime;
+    
+    // If we haven't reached the throttle interval, block the event
+    if (timeSinceLastEvent < THROTTLE_INTERVAL || isWaitingForFrame) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    
+    // Update the timestamp and set waiting flag
+    lastEventTime = currentTime;
+    isWaitingForFrame = true;
+    
+    // Schedule rendering at the next animation frame
+    requestAnimationFrame(() => {
+      isWaitingForFrame = false;
+    });
+  };
+  
+  // Add event listener with capture phase
+  gridRoot.addEventListener('keydown', handleKeyNavigation, true);
+  
+  // Return cleanup function instead of relying on grid destruction event
+  const cleanup = (): void => {
+    gridRoot.removeEventListener('keydown', handleKeyNavigation, true);
+  };
+  
+  // Also hook into grid destroyed event for automatic cleanup
+  api.addEventListener('gridDestroyed', cleanup);
+  
+  // Return cleanup function for manual cleanup if needed
+  return cleanup;
+}
 /////////////////
 
 
