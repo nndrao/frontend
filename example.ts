@@ -35,19 +35,12 @@ export function setupHighPerformanceNavThrottle(api: GridApi): void {
 
 
 
-
-
-
-
-
-
-
 /**
- * Balanced navigation throttling for large AG Grids.
- * Optimized for responsiveness while preventing freezing on large datasets.
+ * Ultra-efficient navigation throttling for extremely large AG Grids.
+ * Optimized for grids with 10,000+ rows, 300+ columns, and multiple grouping levels.
  * 
  * @param api - The AG Grid API instance
- * @returns A cleanup function to remove the event listener
+ * @returns A cleanup function that should be called when the grid is destroyed
  */
 export function setupHighPerformanceNavThrottle(api: GridApi): () => void {
   // Define navigation keys as a Set for O(1) lookup performance
@@ -57,87 +50,75 @@ export function setupHighPerformanceNavThrottle(api: GridApi): () => void {
   const gridRoot = document.querySelector<HTMLElement>('.ag-root');
   if (!gridRoot) {
     console.warn('AG Grid root element not found');
-    return () => {  // Add the event listener and prepare cleanup function
-  gridRoot.addEventListener('keydown', handleKeyNavigation, true);
-  
-  // Return a cleanup function
-  const cleanup = (): void => {
-    gridRoot.removeEventListener('keydown', handleKeyNavigation, true);
-  };
-  
-  // Also hook into grid destroyed event for automatic cleanup
-  api.addEventListener('gridDestroyed', cleanup);
-  
-  return cleanup;
-}; // Return no-op cleanup function
+    return () => {}; // Return no-op cleanup function
   }
   
-  // Simple performance-focused configuration
-  const THROTTLE_INTERVAL = 60; // Short interval for responsiveness
+  // Navigation throttling state
+  let isProcessingFrame = false;
+  let lastProcessedTime = 0;
   
-  // State tracking
-  let lastEventTime = 0;
-  let consecutiveEvents = 0;
-  
-  // Event handler with balanced throttling approach
+  // Create throttling handler
   const handleKeyNavigation = (e: KeyboardEvent): void => {
-    // Early return if not a navigation key
-    if (!navKeys.has(e.key)) return;
-    
-    const currentTime = Date.now();
-    const timeSinceLastEvent = currentTime - lastEventTime;
-    
-    // Count consecutive rapid keypresses
-    if (timeSinceLastEvent < 150) {
-      consecutiveEvents++;
-    } else {
-      consecutiveEvents = 0;
-    }
-    
-    // Basic throttling - block events that happen too quickly
-    if (timeSinceLastEvent < THROTTLE_INTERVAL) {
-      e.preventDefault();
-      e.stopPropagation();
+    // Skip non-navigation keys
+    if (!navKeys.has(e.key)) {
       return;
     }
     
-    // After multiple consecutive events, add a slight delay
-    // but not so much that it feels unresponsive
-    if (consecutiveEvents > 10) {
-      // Brief additional delay to prevent freezing
-      if (consecutiveEvents % 5 === 0) {
-        e.preventDefault();
-        e.stopPropagation();
-        setTimeout(() => {
-          // Dispatch a synthetic event to continue navigation after pause
-          const syntheticEvent = new KeyboardEvent('keydown', {
-            key: e.key,
-            bubbles: true
-          });
-          document.activeElement?.dispatchEvent(syntheticEvent);
-        }, 50);
-        return;
-      }
-    }
+    const now = Date.now();
     
-    // Update timestamp and allow the event
-    lastEventTime = currentTime;
+    // Allow the event if we're not currently processing a frame
+    // and enough time has passed since the last processed event
+    if (!isProcessingFrame && now - lastProcessedTime >= 40) {
+      lastProcessedTime = now;
+      isProcessingFrame = true;
+      
+      // Schedule frame completion
+      requestAnimationFrame(() => {
+        // Wait until next potential frame before allowing another event
+        setTimeout(() => {
+          isProcessingFrame = false;
+        }, 0);
+      });
+    } else {
+      // Block this event since we're either:
+      // 1. Still processing the previous frame, or
+      // 2. Not enough time has passed since the last event
+      e.preventDefault();
+      e.stopPropagation();
+    }
   };
   
-  // Add event listener with capture phase
+  // Add event listener
   gridRoot.addEventListener('keydown', handleKeyNavigation, true);
   
-  // Return cleanup function instead of relying on grid destruction event
-  const cleanup = (): void => {
-    gridRoot.removeEventListener('keydown', handleKeyNavigation, true);
+  // Return cleanup function that should be called when the grid is destroyed
+  return () => {
+    if (gridRoot) {
+      gridRoot.removeEventListener('keydown', handleKeyNavigation, true);
+    }
   };
-  
-  // Also hook into grid destroyed event for automatic cleanup
-  api.addEventListener('gridDestroyed', cleanup);
-  
-  // Return cleanup function for manual cleanup if needed
-  return cleanup;
 }
+
+/**
+ * Example usage:
+ * 
+ * // In your component initialization:
+ * let cleanup: (() => void) | null = null;
+ * 
+ * // When grid is ready:
+ * onGridReady(params) {
+ *   const api = params.api;
+ *   cleanup = setupHighPerformanceNavThrottle(api);
+ * }
+ * 
+ * // When component is destroyed:
+ * onDestroy() {
+ *   if (cleanup) {
+ *     cleanup();
+ *     cleanup = null;
+ *   }
+ * }
+ */
 
 
 
