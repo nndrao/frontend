@@ -31,10 +31,10 @@ export function setupHighPerformanceNavThrottle(api: GridApi): void {
 }
 //////////////////another version of of the above function
 
+
 /**
- * Sets up optimized navigation throttling for AG Grid.
- * Combines time-based throttling (100ms) with requestAnimationFrame
- * for smoother performance and reduced CPU usage.
+ * Balanced navigation throttling for large AG Grids.
+ * Optimized for responsiveness while preventing freezing on large datasets.
  * 
  * @param api - The AG Grid API instance
  * @returns A cleanup function to remove the event listener
@@ -47,47 +47,10 @@ export function setupHighPerformanceNavThrottle(api: GridApi): () => void {
   const gridRoot = document.querySelector<HTMLElement>('.ag-root');
   if (!gridRoot) {
     console.warn('AG Grid root element not found');
-    return () => {}; // Return no-op cleanup function
-  }
-  
-  // Throttle interval in milliseconds
-  const THROTTLE_INTERVAL = 100;
-  
-  // Timestamp of last processed navigation event
-  let lastEventTime = 0;
-  
-  // Track if we're waiting for the next animation frame
-  let isWaitingForFrame = false;
-  
-  // Event handler with combined throttling strategies
-  const handleKeyNavigation = (e: KeyboardEvent): void => {
-    // Early return if not a navigation key
-    if (!navKeys.has(e.key)) return;
-    
-    const currentTime = Date.now();
-    const timeSinceLastEvent = currentTime - lastEventTime;
-    
-    // If we haven't reached the throttle interval, block the event
-    if (timeSinceLastEvent < THROTTLE_INTERVAL || isWaitingForFrame) {
-      e.preventDefault();
-      e.stopPropagation();
-      return;
-    }
-    
-    // Update the timestamp and set waiting flag
-    lastEventTime = currentTime;
-    isWaitingForFrame = true;
-    
-    // Schedule rendering at the next animation frame
-    requestAnimationFrame(() => {
-      isWaitingForFrame = false;
-    });
-  };
-  
-  // Add event listener with capture phase
+    return () => {  // Add the event listener and prepare cleanup function
   gridRoot.addEventListener('keydown', handleKeyNavigation, true);
   
-  // Return cleanup function instead of relying on grid destruction event
+  // Return a cleanup function
   const cleanup = (): void => {
     gridRoot.removeEventListener('keydown', handleKeyNavigation, true);
   };
@@ -95,139 +58,18 @@ export function setupHighPerformanceNavThrottle(api: GridApi): () => void {
   // Also hook into grid destroyed event for automatic cleanup
   api.addEventListener('gridDestroyed', cleanup);
   
-  // Return cleanup function for manual cleanup if needed
   return cleanup;
-}
-/////////////////
-
-
-private setupKeyboardHandling(): void {
-  let arrowKeyHeld = false;
-  let keyHoldTimer: any = null;
-  let lastArrowKey: string | null = null;
-  let keyRepeatCount = 0;
-  const MAX_ARROW_REPEAT = 10;
-
-  // 👇 Track Shift key state globally
-  let isShiftPressed = false;
-
-  document.addEventListener('keydown', (event: KeyboardEvent) => {
-    const key = event.key;
-
-    if (key === 'Shift') {
-      isShiftPressed = true;
-      return;
-    }
-
-    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
-      return;
-    }
-
-    if (isShiftPressed) return; // Let AG Grid handle Shift+Arrow range selection
-
-    if (key === lastArrowKey) {
-      keyRepeatCount++;
-
-      if (keyRepeatCount > MAX_ARROW_REPEAT &&
-          this.gridApi.getDisplayedRowCount() > 1000) {
-
-        event.preventDefault();
-
-        if (!arrowKeyHeld) {
-          arrowKeyHeld = true;
-
-          keyHoldTimer = setInterval(() => {
-            const focusedCell = this.gridApi.getFocusedCell();
-            if (!focusedCell) return;
-
-            let nextRow = focusedCell.rowIndex;
-            let nextCol = focusedCell.column;
-
-            const allCols = this.gridApi.getAllDisplayedColumns();
-            const currentIdx = allCols.indexOf(nextCol);
-
-            if (key === 'ArrowDown') nextRow++;
-            else if (key === 'ArrowUp') nextRow--;
-            else if (key === 'ArrowRight') nextCol = allCols[currentIdx + 1] || nextCol;
-            else if (key === 'ArrowLeft') nextCol = allCols[currentIdx - 1] || nextCol;
-
-            if (nextRow >= 0 && nextRow < this.gridApi.getDisplayedRowCount()) {
-              this.gridApi.ensureIndexVisible(nextRow);
-              this.gridApi.ensureColumnVisible(nextCol);
-              this.gridApi.setFocusedCell(nextRow, nextCol);
-            }
-          }, 150);
-        }
-      }
-    } else {
-      lastArrowKey = key;
-      keyRepeatCount = 0;
-    }
-  });
-
-  document.addEventListener('keyup', (event: KeyboardEvent) => {
-    const key = event.key;
-
-    if (key === 'Shift') {
-      isShiftPressed = false;
-      return;
-    }
-
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
-      arrowKeyHeld = false;
-      lastArrowKey = null;
-      keyRepeatCount = 0;
-
-      if (keyHoldTimer) {
-        clearInterval(keyHoldTimer);
-        keyHoldTimer = null;
-      }
-    }
-  });
-}
-////////////////////////////////////////////////////////////////////////////////
-
-/**
- * High-performance navigation throttling optimized for large AG Grids.
- * Designed for grids with many columns/rows and grouped data to prevent freezing
- * during continuous key navigation.
- * 
- * @param api - The AG Grid API instance
- * @param options - Optional configuration parameters
- * @returns A cleanup function to remove the event listener
- */
-export function setupHighPerformanceNavThrottle(
-  api: GridApi, 
-  options: {
-    throttleInterval?: number,
-    detectFreezing?: boolean,
-    maxConsecutiveEvents?: number
-  } = {}
-): () => void {
-  // Configuration with defaults
-  const config = {
-    throttleInterval: options.throttleInterval ?? 150, // Increased from 100ms to 150ms
-    detectFreezing: options.detectFreezing ?? true,
-    maxConsecutiveEvents: options.maxConsecutiveEvents ?? 15
-  };
-  
-  // Define navigation keys as a Set for O(1) lookup performance
-  const navKeys = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab']);
-  
-  // Find the grid root element
-  const gridRoot = document.querySelector<HTMLElement>('.ag-root');
-  if (!gridRoot) {
-    console.warn('AG Grid root element not found');
-    return () => {}; // Return no-op cleanup function
+}; // Return no-op cleanup function
   }
+  
+  // Simple performance-focused configuration
+  const THROTTLE_INTERVAL = 60; // Short interval for responsiveness
   
   // State tracking
   let lastEventTime = 0;
-  let isWaitingForFrame = false;
   let consecutiveEvents = 0;
-  let lastPerformanceTime = performance.now();
   
-  // Event handler with advanced throttling strategies
+  // Event handler with balanced throttling approach
   const handleKeyNavigation = (e: KeyboardEvent): void => {
     // Early return if not a navigation key
     if (!navKeys.has(e.key)) return;
@@ -235,53 +77,41 @@ export function setupHighPerformanceNavThrottle(
     const currentTime = Date.now();
     const timeSinceLastEvent = currentTime - lastEventTime;
     
-    // Performance monitoring for freezing detection
-    if (config.detectFreezing) {
-      const currentPerformance = performance.now();
-      const frameDuration = currentPerformance - lastPerformanceTime;
-      
-      // If frame rate drops significantly (frame taking > 50ms), increase throttle
-      if (frameDuration > 50) {
-        // Dynamically adjust throttle interval based on performance
-        config.throttleInterval = Math.min(500, config.throttleInterval + 50);
-        consecutiveEvents = 0; // Reset to force a pause
-      }
-      
-      lastPerformanceTime = currentPerformance;
-    }
-    
-    // Track consecutive navigation events of the same type
-    if (timeSinceLastEvent < 300) {
+    // Count consecutive rapid keypresses
+    if (timeSinceLastEvent < 150) {
       consecutiveEvents++;
     } else {
       consecutiveEvents = 0;
     }
     
-    // Force a longer pause after many consecutive events to prevent freezing
-    if (consecutiveEvents > config.maxConsecutiveEvents) {
-      setTimeout(() => { consecutiveEvents = 0; }, 300);
+    // Basic throttling - block events that happen too quickly
+    if (timeSinceLastEvent < THROTTLE_INTERVAL) {
       e.preventDefault();
       e.stopPropagation();
       return;
     }
     
-    // Combined throttling logic
-    if (timeSinceLastEvent < config.throttleInterval || isWaitingForFrame) {
-      e.preventDefault();
-      e.stopPropagation();
-      return;
+    // After multiple consecutive events, add a slight delay
+    // but not so much that it feels unresponsive
+    if (consecutiveEvents > 10) {
+      // Brief additional delay to prevent freezing
+      if (consecutiveEvents % 5 === 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        setTimeout(() => {
+          // Dispatch a synthetic event to continue navigation after pause
+          const syntheticEvent = new KeyboardEvent('keydown', {
+            key: e.key,
+            bubbles: true
+          });
+          document.activeElement?.dispatchEvent(syntheticEvent);
+        }, 50);
+        return;
+      }
     }
     
-    // Update state and process the event
+    // Update timestamp and allow the event
     lastEventTime = currentTime;
-    isWaitingForFrame = true;
-    
-    // Use requestAnimationFrame and setTimeout together for more reliable throttling
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        isWaitingForFrame = false;
-      }, Math.max(0, config.throttleInterval - 16)); // Account for frame time
-    });
   };
   
   // Add event listener with capture phase
@@ -298,6 +128,17 @@ export function setupHighPerformanceNavThrottle(
   // Return cleanup function for manual cleanup if needed
   return cleanup;
 }
+
+
+
+
+
+
+
+
+
+
+
 
 
 
