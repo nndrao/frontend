@@ -32,6 +32,16 @@ export function setupHighPerformanceNavThrottle(api: GridApi): void {
 //////////////////another version of of the above function
 
 
+
+
+
+
+
+
+
+
+
+
 /**
  * Balanced navigation throttling for large AG Grids.
  * Optimized for responsiveness while preventing freezing on large datasets.
