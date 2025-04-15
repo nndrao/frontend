@@ -185,7 +185,125 @@ private setupKeyboardHandling(): void {
     }
   });
 }
+////////////////////////////////////////////////////////////////////////////////
 
+/**
+ * High-performance navigation throttling optimized for large AG Grids.
+ * Designed for grids with many columns/rows and grouped data to prevent freezing
+ * during continuous key navigation.
+ * 
+ * @param api - The AG Grid API instance
+ * @param options - Optional configuration parameters
+ * @returns A cleanup function to remove the event listener
+ */
+export function setupHighPerformanceNavThrottle(
+  api: GridApi, 
+  options: {
+    throttleInterval?: number,
+    detectFreezing?: boolean,
+    maxConsecutiveEvents?: number
+  } = {}
+): () => void {
+  // Configuration with defaults
+  const config = {
+    throttleInterval: options.throttleInterval ?? 150, // Increased from 100ms to 150ms
+    detectFreezing: options.detectFreezing ?? true,
+    maxConsecutiveEvents: options.maxConsecutiveEvents ?? 15
+  };
+  
+  // Define navigation keys as a Set for O(1) lookup performance
+  const navKeys = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab']);
+  
+  // Find the grid root element
+  const gridRoot = document.querySelector<HTMLElement>('.ag-root');
+  if (!gridRoot) {
+    console.warn('AG Grid root element not found');
+    return () => {}; // Return no-op cleanup function
+  }
+  
+  // State tracking
+  let lastEventTime = 0;
+  let isWaitingForFrame = false;
+  let consecutiveEvents = 0;
+  let lastPerformanceTime = performance.now();
+  
+  // Event handler with advanced throttling strategies
+  const handleKeyNavigation = (e: KeyboardEvent): void => {
+    // Early return if not a navigation key
+    if (!navKeys.has(e.key)) return;
+    
+    const currentTime = Date.now();
+    const timeSinceLastEvent = currentTime - lastEventTime;
+    
+    // Performance monitoring for freezing detection
+    if (config.detectFreezing) {
+      const currentPerformance = performance.now();
+      const frameDuration = currentPerformance - lastPerformanceTime;
+      
+      // If frame rate drops significantly (frame taking > 50ms), increase throttle
+      if (frameDuration > 50) {
+        // Dynamically adjust throttle interval based on performance
+        config.throttleInterval = Math.min(500, config.throttleInterval + 50);
+        consecutiveEvents = 0; // Reset to force a pause
+      }
+      
+      lastPerformanceTime = currentPerformance;
+    }
+    
+    // Track consecutive navigation events of the same type
+    if (timeSinceLastEvent < 300) {
+      consecutiveEvents++;
+    } else {
+      consecutiveEvents = 0;
+    }
+    
+    // Force a longer pause after many consecutive events to prevent freezing
+    if (consecutiveEvents > config.maxConsecutiveEvents) {
+      setTimeout(() => { consecutiveEvents = 0; }, 300);
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    
+    // Combined throttling logic
+    if (timeSinceLastEvent < config.throttleInterval || isWaitingForFrame) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    
+    // Update state and process the event
+    lastEventTime = currentTime;
+    isWaitingForFrame = true;
+    
+    // Use requestAnimationFrame and setTimeout together for more reliable throttling
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        isWaitingForFrame = false;
+      }, Math.max(0, config.throttleInterval - 16)); // Account for frame time
+    });
+  };
+  
+  // Add event listener with capture phase
+  gridRoot.addEventListener('keydown', handleKeyNavigation, true);
+  
+  // Return cleanup function instead of relying on grid destruction event
+  const cleanup = (): void => {
+    gridRoot.removeEventListener('keydown', handleKeyNavigation, true);
+  };
+  
+  // Also hook into grid destroyed event for automatic cleanup
+  api.addEventListener('gridDestroyed', cleanup);
+  
+  // Return cleanup function for manual cleanup if needed
+  return cleanup;
+}
+
+
+
+
+
+////***********************************************************************/////////////
 
 ////////////////////////////////////////////////////////////////////
 
